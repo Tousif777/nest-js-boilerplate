@@ -17,12 +17,17 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async signUp(@Body(new ValidationPipe()) signUpDto: SignUpDto) {
     try {
-      return await this.authService.signUp(signUpDto.email, signUpDto.password, signUpDto.name);
+      const result = await this.authService.signUp(signUpDto.email, signUpDto.password, signUpDto.name);
+      return {
+        error: false,
+        message: 'User signed up successfully',
+        data: result
+      };
     } catch (error) {
       if (error instanceof ConflictException) {
-        throw new ConflictException(error.message);
+        throw new ConflictException({ error: true, message: error.message });
       }
-      throw new InternalServerErrorException('Something went wrong');
+      throw new InternalServerErrorException({ error: true, message: 'Something went wrong' });
     }
   }
 
@@ -30,7 +35,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async signIn(@Body() signInDto: { email: string; password: string }) {
     const { accessToken, refreshToken } = await this.authService.signIn(signInDto.email, signInDto.password);
-    return { accessToken };
+    return {
+      error: false,
+      message: 'User signed in successfully',
+      data: { accessToken }
+    };
   }
 
   @UseGuards(RefreshTokenGuard)
@@ -47,7 +56,11 @@ export class AuthController {
     // Set new refresh token as HttpOnly cookie
     this.setRefreshTokenCookie(response, tokens.refreshToken);
 
-    return { accessToken: tokens.accessToken };
+    return {
+      error: false,
+      message: 'Tokens refreshed successfully',
+      data: { accessToken: tokens.accessToken }
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -58,8 +71,9 @@ export class AuthController {
 
     if (user) {
       return res.json({
+        error: false,
         message: 'User information retrieved successfully',
-        user: {
+        data: {
           id: user._id,
           email: user.email,
           name: user.name
@@ -68,6 +82,7 @@ export class AuthController {
       });
     } else {
       return res.status(HttpStatus.NOT_FOUND).json({
+        error: true,
         message: 'User information not found in res.locals'
       });
     }
