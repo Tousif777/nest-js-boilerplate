@@ -78,7 +78,6 @@ export class AuthController {
           id: user._id,
           email: user.email,
           name: user.name
-          // Add any other fields you want to return, but be careful not to expose sensitive information
         }
       });
     } else {
