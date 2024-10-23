@@ -89,12 +89,18 @@ export class AuthController {
   }
 
   private setRefreshTokenCookie(response: Response, refreshToken: string) {
-    response.cookie('refreshToken', refreshToken, {
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const cookieOptions: any = {
       httpOnly: true,
-      secure: this.configService.get<string>('NODE_ENV') === 'production',
-      sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/auth',
-    });
+      path: '/',
+    };
+
+    if (isProduction) {
+      cookieOptions.secure = true;
+      cookieOptions.sameSite = 'none';
+    }
+
+    response.cookie('refreshToken', refreshToken, cookieOptions);
   }
 }
