@@ -14,13 +14,14 @@ export class AuthController {
 
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
-  async signUp(@Body(new ValidationPipe()) signUpDto: SignUpDto) {
+  async signUp(@Body(new ValidationPipe()) signUpDto: SignUpDto, @Res({ passthrough: true }) response: Response) {
     try {
       const result = await this.authService.signUp(signUpDto.email, signUpDto.password, signUpDto.name);
+      this.setRefreshTokenCookie(response, result.refreshToken);
       return {
         error: false,
         message: 'User signed up successfully',
-        data: result
+        data: { accessToken: result.accessToken }
       };
     } catch (error) {
       if (error instanceof ConflictException) {
@@ -32,34 +33,31 @@ export class AuthController {
 
   @Post('signin')
   @HttpCode(HttpStatus.OK)
-  async signIn(@Body() signInDto: { email: string; password: string }) {
+  async signIn(@Body() signInDto: { email: string; password: string }, @Res({ passthrough: true }) response: Response) {
     const result = await this.authService.signIn(signInDto.email, signInDto.password);
+    this.setRefreshTokenCookie(response, result.refreshToken);
     return {
       error: false,
       message: 'User signed in successfully',
-      data: result
+      data: { accessToken: result.accessToken }
     };
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refreshTokens(
-    @Req() req: Request,
-    @Res({ passthrough: true }) response: Response
-  ) {
-    const refreshToken = req.body['refreshToken'];
-    console.log(refreshToken);
+  async refreshTokens(@Req() req: Request, @Res({ passthrough: true }) response: Response) {
+    const refreshToken = req.cookies['refreshToken'];
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }
 
     try {
       const tokens = await this.authService.refreshTokens(refreshToken);
-
+      this.setRefreshTokenCookie(response, tokens.refreshToken);
       return {
         error: false,
         message: 'Tokens refreshed successfully',
-        data: tokens
+        data: { accessToken: tokens.accessToken }
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
