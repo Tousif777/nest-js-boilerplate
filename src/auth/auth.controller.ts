@@ -88,6 +88,37 @@ export class AuthController {
     }
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies['refreshToken'];
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    try {
+      // Verify and decode the refresh token to get the user ID
+      const userId = await this.authService.getUserIdFromRefreshToken(refreshToken);
+
+      // Clear the refresh token in the database
+      await this.authService.clearRefreshToken(userId);
+
+      // Clear the refresh token cookie
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        path: '/',
+        ...this.getCookieOptions()
+      });
+
+      return {
+        error: false,
+        message: 'User logged out successfully'
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   private setRefreshTokenCookie(response: Response, refreshToken: string) {
     const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
     const cookieOptions: any = {
@@ -102,5 +133,17 @@ export class AuthController {
     }
 
     response.cookie('refreshToken', refreshToken, cookieOptions);
+  }
+
+  private getCookieOptions() {
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const cookieOptions: any = {};
+
+    if (isProduction) {
+      cookieOptions.secure = true;
+      cookieOptions.sameSite = 'none';
+    }
+
+    return cookieOptions;
   }
 }

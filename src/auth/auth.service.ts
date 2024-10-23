@@ -107,4 +107,15 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  async clearRefreshToken(userId: string) {
+    await this.usersService.update(userId, { refreshToken: null });
+  }
+
+  async getUserIdFromRefreshToken(refreshToken: string) {
+    const decoded = this.jwtService.verify(refreshToken, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+    });
+    return decoded.sub;
+  }
 }
