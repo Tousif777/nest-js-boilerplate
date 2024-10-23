@@ -1,8 +1,7 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Req, Res, Get, ConflictException, InternalServerErrorException, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Req, Res, Get, ConflictException, InternalServerErrorException, ValidationPipe, UnauthorizedException } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { RefreshTokenGuard } from './refresh-token.guard';
 import { SignUpDto } from './dto/sign-up.dto';
 import { ConfigService } from '@nestjs/config';
 
@@ -34,33 +33,37 @@ export class AuthController {
   @Post('signin')
   @HttpCode(HttpStatus.OK)
   async signIn(@Body() signInDto: { email: string; password: string }) {
-    const { accessToken, refreshToken } = await this.authService.signIn(signInDto.email, signInDto.password);
+    const result = await this.authService.signIn(signInDto.email, signInDto.password);
     return {
       error: false,
       message: 'User signed in successfully',
-      data: { accessToken }
+      data: result
     };
   }
 
-  @UseGuards(RefreshTokenGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refreshTokens(
-    @Req() req: any,
+    @Req() req: Request,
     @Res({ passthrough: true }) response: Response
   ) {
-    const userId = req.user['sub'];
-    const refreshToken = req.user['refreshToken'];
-    const tokens = await this.authService.refreshTokens(userId, refreshToken);
-    
-    // Set new refresh token as HttpOnly cookie
-    this.setRefreshTokenCookie(response, tokens.refreshToken);
+    const refreshToken = req.body['refreshToken'];
+    console.log(refreshToken);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
 
-    return {
-      error: false,
-      message: 'Tokens refreshed successfully',
-      data: { accessToken: tokens.accessToken }
-    };
+    try {
+      const tokens = await this.authService.refreshTokens(refreshToken);
+
+      return {
+        error: false,
+        message: 'Tokens refreshed successfully',
+        data: tokens
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 
   @UseGuards(JwtAuthGuard)
@@ -94,7 +97,7 @@ export class AuthController {
       secure: this.configService.get<string>('NODE_ENV') === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
+      path: '/auth',
     });
   }
 }

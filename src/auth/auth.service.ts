@@ -47,18 +47,28 @@ export class AuthService {
     return tokens;
   }
 
-  async refreshTokens(userId: string, refreshToken: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user || !user.refreshToken)
-      throw new ForbiddenException('Access Denied');
-    const refreshTokenMatches = await bcrypt.compare(
-      refreshToken,
-      user.refreshToken
-    );
-    if (!refreshTokenMatches) throw new ForbiddenException('Access Denied');
-    const tokens = await this.getTokens(user._id, user.email);
-    await this.updateRefreshToken(user._id, tokens.refreshToken);
-    return tokens;
+  async refreshTokens(refreshToken: string) {
+    try {
+      // Decode the refresh token to get the userId
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
+      const userId = decoded.sub;
+
+      const user = await this.usersService.findById(userId);
+      if (!user || !user.refreshToken)
+        throw new ForbiddenException('Access Denied');
+      const refreshTokenMatches = await bcrypt.compare(
+        refreshToken,
+        user.refreshToken
+      );
+      if (!refreshTokenMatches) throw new ForbiddenException('Access Denied');
+      const tokens = await this.getTokens(user._id, user.email);
+      await this.updateRefreshToken(user._id, tokens.refreshToken);
+      return tokens;
+    } catch (error) {
+      throw new ForbiddenException('Invalid refresh token');
+    }
   }
 
   async updateRefreshToken(userId: string, refreshToken: string) {
